@@ -31,6 +31,8 @@ Navigate to the examples folder and check the existing examples to get you start
 ### Troubleshooting
 The installation will fail if [tensorflow](https://www.tensorflow.org/install/pip#macos) requirements are not met. As of 2023/11/13, they require a python version between 3.9 and 3.11 and a 64bits python version.
 
+NumPy compatibility: the code uses `np.nan` and we pin `numpy>=1,<2` in `setup.py` to match TensorFlow 2.x and avoid NumPy 2.0 API removals (e.g., `np.NaN`). If you override the pin, expect to stay on NumPy 1.x until TensorFlow officially supports 2.x.
+
 For any other problem, open an [issue](https://github.com/jeslago/epftoolbox/issues).
 
 ## Documentation
@@ -75,3 +77,16 @@ Bibtex entry::
     doi = {https://doi.org/10.1016/j.apenergy.2021.116983},
     author = {Jesus Lago and Grzegorz Marcjasz and Bart {De Schutter} and Rafał Weron}
     }
+    
+    
+----
+
+# Notebooks for DS
+The `Notebooks/` folder is added to call functions defined in this repo. The
+goal is to spoonfeed the users with working examples in Jupyter notebook format,
+so that one native to the DS field can follow.
+
+Noetbooks are created with help of Codex, and the ordering of notebooks is
+arranged so that it matches the narratives on the feature in this repo, namely:
+Forecatsing, Evaluation and dataset of DA markets and predicted values in CSV
+format.
