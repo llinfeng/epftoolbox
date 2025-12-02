@@ -85,8 +85,9 @@ Bibtex entry::
 If you want a fresh environment via `uv` (fast, offline-friendly installer) and GPU support:
 1) `uv venv .venv && source .venv/bin/activate`
 2) `uv pip install --upgrade pip`
-3) `uv pip install "setuptools<81"`  (quiet the hyperopt/pkg_resources warning)
-4) GPU-enabled TensorFlow by default:  
+3) `uv pip install jupyter ipykernel` (installs the notebook server/kernel into this venv; without it, `uv run jupyter` will fall back to the system Python/kernel and ignore the local `.venv`)
+4) `uv pip install "setuptools<81"`  (quiet the hyperopt/pkg_resources warning)
+5) GPU-enabled TensorFlow by default:  
    `uv pip install "tensorflow[and-cuda]==2.15.*" -e .`  
    - Uses CUDA/cuDNN wheels (driver must support CUDA 12.x).  
    - Pins NumPy <2 and Keras <3 via `setup.py` to match TF 2.15.  
