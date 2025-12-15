@@ -23,3 +23,7 @@ Cursor will automatically read rules from this folder. The rules help the AI ass
 
 You can add additional rule files in the `rules/` directory. Cursor will read all markdown files in this directory.
 
+
+
+
+
