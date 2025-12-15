@@ -610,7 +610,11 @@ def run_dnn_forecast(
     path_recalibration_folder: Union[str, Path] = 'forecasts_local',
     dataset: str = 'PJM',
     years_test: int = 2,
-    new_recalibration: bool = True
+    new_recalibration: bool = True,
+    nlayers: int = 2,
+    shuffle_train: bool = True,
+    data_augmentation: int = 0,
+    calibration_window: int = 4,
 ) -> pd.DataFrame:
     """
     Run DNN forecast for a single day.
@@ -633,6 +637,14 @@ def run_dnn_forecast(
         Number of test years (default: 2)
     new_recalibration : bool
         Force fresh recalibration (default: True)
+    nlayers : int
+        Number of hidden layers; must match the hyperparameter search run
+    shuffle_train : bool
+        Whether shuffling was used during hyperparameter search
+    data_augmentation : int
+        Whether data augmentation was used (0/1) in hyperparameter search
+    calibration_window : int
+        Calibration window in years; must match the hyperparameter search
     
     Returns:
     --------
@@ -654,6 +666,10 @@ def run_dnn_forecast(
         path_recalibration_folder=str(path_recalibration_folder),
         dataset=dataset,
         years_test=years_test,
+        nlayers=nlayers,
+        shuffle_train=shuffle_train,
+        data_augmentation=data_augmentation,
+        calibration_window=calibration_window,
         begin_test_date=begin_test_date,
         end_test_date=end_test_date,
         new_recalibration=new_recalibration,
@@ -672,7 +688,11 @@ def run_dnn_forecast_multiday(
     dataset: str = 'PJM',
     years_test: int = 2,
     new_recalibration: bool = True,
-    verbose: bool = True
+    verbose: bool = True,
+    nlayers: int = 2,
+    shuffle_train: bool = True,
+    data_augmentation: int = 0,
+    calibration_window: int = 4,
 ) -> Dict[str, pd.DataFrame]:
     """
     Run DNN forecasts for multiple consecutive days with daily recalibration.
@@ -699,6 +719,14 @@ def run_dnn_forecast_multiday(
         Force fresh recalibration for each day (default: True)
     verbose : bool
         Whether to print progress information (default: True)
+    nlayers : int
+        Number of hidden layers; must match the hyperparameter search run
+    shuffle_train : bool
+        Whether shuffling was used during hyperparameter search
+    data_augmentation : int
+        Whether data augmentation was used (0/1) in hyperparameter search
+    calibration_window : int
+        Calibration window in years; must match the hyperparameter search
     
     Returns:
     --------
@@ -730,7 +758,11 @@ def run_dnn_forecast_multiday(
             path_recalibration_folder=path_recalibration_folder,
             dataset=dataset,
             years_test=years_test,
-            new_recalibration=new_recalibration
+            new_recalibration=new_recalibration,
+            nlayers=nlayers,
+            shuffle_train=shuffle_train,
+            data_augmentation=data_augmentation,
+            calibration_window=calibration_window,
         )
         
         all_forecasts[current_date.strftime('%Y-%m-%d')] = forecast_dnn
