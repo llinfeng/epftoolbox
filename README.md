@@ -83,21 +83,42 @@ Bibtex entry::
 
 # Notebooks for DS
 If you want a fresh environment via `uv` (fast, offline-friendly installer) and GPU support:
+
+## Modern approach (using uv.lock - recommended)
+1) Create virtual environment:
+   ```bash
+   uv venv .venv --python /usr/bin/python3.11
+   ```
+2) Sync dependencies from lock file (ensures reproducible environment):
+   ```bash
+   uv sync --extra gpu --extra dev
+   ```
+   - Installs from `uv.lock` with exact versions (197 packages)
+   - Includes GPU support with cuDNN 8.9 (compatible with TensorFlow 2.15)
+   - Includes Jupyter and dev tools
+3) Validate GPU visibility:
+   ```bash
+   uv run python -c "import tensorflow as tf; print('GPU:', tf.config.list_physical_devices('GPU'))"
+   ```
+   - If you see `GPU: []` (empty list), verify `nvidia-smi` shows your GPU and driver supports CUDA 12.x
+4) Launch Jupyter server:
+   ```bash
+   uv run jupyter lab --ip=127.0.0.1 --port=9002 --no-browser
+   ```
+
+## Legacy approach (manual installation)
+<details>
+<summary>Click to expand manual pip install instructions</summary>
+
 1) `uv venv .venv --python /usr/bin/python3.11`
 2) `uv pip install --upgrade pip`
-3) `uv pip install jupyter ipykernel` (installs the notebook server/kernel into this venv; without it, `uv run jupyter` will fall back to the system Python/kernel and ignore the local `.venv`)
-4) `uv pip install "setuptools<81"`  (quiet the hyperopt/pkg_resources warning)
-5) GPU-enabled TensorFlow by default:  
-   `uv pip install "tensorflow[and-cuda]==2.15.*" -e .`  
-   - Uses CUDA/cuDNN wheels (driver must support CUDA 12.x).  
-   - Pins NumPy <2 and Keras <3 via `setup.py` to match TF 2.15.  
-   - Validate GPU visibility:  
-     `python - <<'PY'\nimport tensorflow as tf\nprint(tf.config.list_physical_devices('GPU'))\nPY`
-   - If you keep seeing “Could not find cuda drivers”: verify `nvidia-smi`, install a matching driver, and ensure the venv uses this install.
-6) Launch the jupyter server at backend, for persistent kernel provision:
-    ```bash
-    uv run jupyter lab --ip=127.0.0.1 --port=9002 --no-browser
-    ```
+3) `uv pip install jupyter ipykernel setuptools<81`
+4) GPU-enabled TensorFlow:
+   `uv pip install "tensorflow[and-cuda]==2.15.*" "nvidia-cudnn-cu12>=8.9,<9.0" -e .`
+   - Note: cuDNN 8.x is required for TensorFlow 2.15 (cuDNN 9+ will fail)
+5) Launch jupyter: `uv run jupyter lab --ip=127.0.0.1 --port=9002 --no-browser`
+
+</details>
 
 The `Notebooks/` folder is added to call functions defined in this repo. The
 goal is to spoonfeed the users with working examples in Jupyter notebook format,
