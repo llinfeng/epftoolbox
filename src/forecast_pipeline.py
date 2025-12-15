@@ -13,6 +13,7 @@ import os
 import warnings
 import time
 import pickle as pc
+import re
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Union
 import pandas as pd
@@ -795,9 +796,10 @@ def calculate_metrics(
     Parameters:
     -----------
     actual : np.ndarray
-        Actual price values (24 hours)
+        Actual price values (length = number of forecast horizons, e.g. 24 for one day,
+        48 for two days, etc.)
     predictions : np.ndarray
-        Predicted price values (24 hours)
+        Predicted price values (same length as ``actual``)
     df_train : pd.DataFrame
         Training dataframe (for MASE calculation)
     target_date : str or pd.Timestamp
@@ -809,8 +811,9 @@ def calculate_metrics(
         Dictionary of metric names and values
     """
     target_date = pd.to_datetime(target_date)
+    horizon_len = len(actual)
     datetime_index = pd.date_range(
-        start=target_date, periods=24, freq='1h'
+        start=target_date, periods=horizon_len, freq='1h'
     )
     
     # Convert to DataFrames for MASE
@@ -874,16 +877,79 @@ def evaluate_all_models(
     pd.DataFrame
         Dataframe with metrics for each model
     """
+    # Ensure actual is a 1D array (can represent multi‑day horizons)
+    actual_array = np.asarray(actual).flatten()
+    horizon_len = len(actual_array)
+
+    # ------------------------------------------------------------------
+    # Handle multi‑day predictions:
+    # Keys may look like "YYYY-MM-DD_LEAR_1456" or "YYYY-MM-DD_DNN_4years".
+    # In that case, we want to concatenate predictions for the same
+    # underlying model (e.g., "LEAR_1456") across days in chronological
+    # order so that their length matches ``actual``.
+    # ------------------------------------------------------------------
+    date_key_pattern = re.compile(r'^(\d{4}-\d{2}-\d{2})_(.+)$')
+
+    # First pass: group by base model name if keys contain dates
+    grouped: Dict[str, List[Tuple[pd.Timestamp, np.ndarray]]] = {}
+    passthrough: Dict[str, np.ndarray] = {}
+
+    for key, values in predictions_dict.items():
+        values_array = np.asarray(values).flatten()
+        match = date_key_pattern.match(key)
+        if match:
+            date_str, base_name = match.groups()
+            date_ts = pd.to_datetime(date_str)
+            grouped.setdefault(base_name, []).append((date_ts, values_array))
+        else:
+            # Keys without date prefix are treated as already aggregated
+            passthrough[key] = values_array
+
+    processed_predictions: Dict[str, np.ndarray] = dict(passthrough)
+
+    # Concatenate multi‑day forecasts for each base model name
+    for base_name, items in grouped.items():
+        # Sort by date to ensure correct temporal order
+        items_sorted = sorted(items, key=lambda x: x[0])
+        concatenated = np.concatenate([arr for _, arr in items_sorted])
+        processed_predictions[base_name] = concatenated
+
+    # As a fallback, if nothing matched the pattern, just use originals
+    if not grouped and not passthrough:
+        processed_predictions = {
+            k: np.asarray(v).flatten() for k, v in predictions_dict.items()
+        }
+
+    # ------------------------------------------------------------------
+    # Sanity check: all prediction arrays used for metrics must have the
+    # same length as ``actual``. If not, raise a clear error rather than
+    # a cryptic broadcasting ValueError down in the metrics.
+    # ------------------------------------------------------------------
+    filtered_predictions: Dict[str, np.ndarray] = {}
+    for model_name, preds in processed_predictions.items():
+        if len(preds) != horizon_len:
+            raise ValueError(
+                f"Prediction length mismatch for model '{model_name}': "
+                f"got {len(preds)} values, expected {horizon_len}. "
+                "If you are running a multi‑day forecast, ensure that "
+                "all days for each model are present so they can be "
+                "concatenated to match the length of 'actual'."
+            )
+        filtered_predictions[model_name] = preds
+
+    # ------------------------------------------------------------------
+    # Compute metrics for each model
+    # ------------------------------------------------------------------
     results = {}
-    for model_name, predictions in predictions_dict.items():
+    for model_name, predictions in filtered_predictions.items():
         metrics = calculate_metrics(
-            actual=actual,
+            actual=actual_array,
             predictions=predictions,
             df_train=df_train,
             target_date=target_date
         )
         results[model_name] = metrics
-    
+
     metrics_df = pd.DataFrame(results).T
     return metrics_df
 
@@ -926,11 +992,60 @@ def save_predictions(
     
     filepath = output_path / filename
     
-    # Create dataframe with hours as columns
-    data = {}
-    for model_name, predictions in predictions_dict.items():
-        data[model_name] = predictions
+    # ------------------------------------------------------------------
+    # Handle multi-day predictions in the same way as in evaluate_all_models:
+    # aggregate keys like "YYYY-MM-DD_LEAR_1456" into a single series per
+    # base model (e.g. "LEAR_1456") by concatenating days chronologically.
+    # This ensures that every column has a consistent length, matching
+    # the full forecast horizon (e.g. N_DAYS * 24).
+    # ------------------------------------------------------------------
+    date_key_pattern = re.compile(r'^(\d{4}-\d{2}-\d{2})_(.+)$')
+
+    grouped: Dict[str, List[Tuple[pd.Timestamp, np.ndarray]]] = {}
+    passthrough: Dict[str, np.ndarray] = {}
+
+    for key, values in predictions_dict.items():
+        values_array = np.asarray(values).flatten()
+        match = date_key_pattern.match(key)
+        if match:
+            date_str, base_name = match.groups()
+            date_ts = pd.to_datetime(date_str)
+            grouped.setdefault(base_name, []).append((date_ts, values_array))
+        else:
+            passthrough[key] = values_array
+
+    processed_predictions: Dict[str, np.ndarray] = dict(passthrough)
+
+    for base_name, items in grouped.items():
+        items_sorted = sorted(items, key=lambda x: x[0])
+        concatenated = np.concatenate([arr for _, arr in items_sorted])
+        processed_predictions[base_name] = concatenated
+
+    if not grouped and not passthrough:
+        processed_predictions = {
+            k: np.asarray(v).flatten() for k, v in predictions_dict.items()
+        }
+
+    # Determine expected length: prefer length of 'actual' if present,
+    # otherwise use the length of the first series.
+    target_len: Optional[int] = None
+    if 'actual' in processed_predictions:
+        target_len = len(processed_predictions['actual'])
+    elif processed_predictions:
+        target_len = len(next(iter(processed_predictions.values())))
+
+    data: Dict[str, np.ndarray] = {}
+    for model_name, preds in processed_predictions.items():
+        if target_len is not None and len(preds) != target_len:
+            raise ValueError(
+                f"Prediction length mismatch when saving for model '{model_name}': "
+                f"got {len(preds)} values, expected {target_len}. "
+                "If running multi-day forecasts, ensure that all days for each "
+                "model are present so they can be concatenated correctly."
+            )
+        data[model_name] = preds
     
+    # Create dataframe with hours as rows
     df = pd.DataFrame(data)
     df.index.name = 'Hour'
     df.to_csv(filepath)
