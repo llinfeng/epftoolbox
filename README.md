@@ -83,7 +83,7 @@ Bibtex entry::
 
 # Notebooks for DS
 If you want a fresh environment via `uv` (fast, offline-friendly installer) and GPU support:
-1) `uv venv .venv && source .venv/bin/activate`
+1) `uv venv .venv --python /usr/bin/python3.11`
 2) `uv pip install --upgrade pip`
 3) `uv pip install jupyter ipykernel` (installs the notebook server/kernel into this venv; without it, `uv run jupyter` will fall back to the system Python/kernel and ignore the local `.venv`)
 4) `uv pip install "setuptools<81"`  (quiet the hyperopt/pkg_resources warning)
@@ -94,6 +94,10 @@ If you want a fresh environment via `uv` (fast, offline-friendly installer) and 
    - Validate GPU visibility:  
      `python - <<'PY'\nimport tensorflow as tf\nprint(tf.config.list_physical_devices('GPU'))\nPY`
    - If you keep seeing “Could not find cuda drivers”: verify `nvidia-smi`, install a matching driver, and ensure the venv uses this install.
+6) Launch the jupyter server at backend, for persistent kernel provision:
+    ```bash
+    uv run jupyter lab --ip=127.0.0.1 --port=9002 --no-browser
+    ```
 
 The `Notebooks/` folder is added to call functions defined in this repo. The
 goal is to spoonfeed the users with working examples in Jupyter notebook format,
@@ -103,3 +107,17 @@ Noetbooks are created with help of Codex, and the ordering of notebooks is
 arranged so that it matches the narratives on the feature in this repo, namely:
 Forecatsing, Evaluation and dataset of DA markets and predicted values in CSV
 format.
+
+## Notes in prep for rerun: lock Python at 3.11
+Install Python 3.11 via Deadsnakes PPA
+```bash
+# Install the necessary package for adding repositories (if not already installed)
+sudo apt install software-properties-common -y
+
+# Add the Deadsnakes PPA
+sudo add-apt-repository ppa:deadsnakes/ppa -y
+
+# Update your package list to recognize the new repository
+sudo apt update
+sudo apt install python3.11 python3.11-venv -y
+```
